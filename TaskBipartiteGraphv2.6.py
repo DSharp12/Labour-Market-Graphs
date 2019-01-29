@@ -2,88 +2,33 @@
 based on their component DWA and Task work intensities. It uses these ranks as weights in a
 Bipartite Graph, building the graph and returning it and it's adjacency matrix.
 """ 
+
+#import relevant files
+
 import numpy as np
 import pandas as pd
-import time
-import operator
 import networkx as nx 
 from networkx import bipartite
-import pickle
 import matplotlib.pyplot as plt
-import shelve
-import os
 
 
+#define relevant functions
 
+"""This function generates a sequence of lists of unique items from columns in a dataframe
+"""
+def unique_lists(df,collist):
+    #df - dataframe you are generating lists from
+    #collist - list of columns whose unique values you want to generate
+    
+    for i in collist:
+        nospace=i.replace(" ","")
+        listname=nospace+'_list'
+        list1=list(df[i].unique())
+        exec(listname + "=  list(df[i].unique())")
+        
+        return list1
+    
 
-#using pandas to read in the data in csv format as a dataframe: df
-
-
-df = pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Tasks to DWAs.xlsx', header=0)
-#print(df.head())
-
-dflen = str(len(df))
-print('df length:' + ' ' + dflen)
-
-#DWAs are ranked separately for each occupation in the O*NET database 
-#For each occupation, the following steps are taken:
-
-#1) Collect all tasks associated with the occupation
-#list of uniques occupations
-occs = list(df['O*NET-SOC Code'].unique())
-
-#list of unique tasks
-tasks = list(df['Task ID'].unique())
-
-#list of unique dwas 
-dwaids = list(df['DWA ID'].unique())
-
-#length of each list from above 
-dwalen = str(len(dwaids))
-tasklen = str(len(tasks))
-occslen = str(len(occs))
-print('tasks:' + ' ' + tasklen)
-print('jobs:' + ' ' + occslen)
-print('dwas:' + ' ' + dwalen)
-#print(df.head())
-
-#gives unique task codes list related to occupation
-uniqtasks = df.groupby('O*NET-SOC Code')['Task ID'].unique().reset_index()
-#print(uniqtasks)
-
-#gives unique DWA code list related to occupation
-uniqdwa = df.groupby('O*NET-SOC Code')['DWA ID'].unique().reset_index()
-
-#give number of unique tasks for each occ
-numuniqtasks = df.groupby(by='O*NET-SOC Code', as_index=False).agg({'Task ID': pd.Series.nunique})
-#print(numuniqtasks)
-
-
-
-#2) Collect the list of all tasks associated with DWA's across occupations
-dwas = df.groupby('DWA ID')['Task ID'].unique().reset_index()
-#print(dwas)
-
-#give number of unique dwas linked to each task
-numdwas = df.groupby(by='DWA ID', as_index=False).agg({'Task ID': pd.Series.nunique})
-#print(numdwas)    
-
-#give the number of tasks for each DWA in each occupation
-numtasks=df.groupby(by=['O*NET-SOC Code', 'DWA ID'], as_index=False).agg({'Task ID': pd.Series.nunique})
-numtasks.rename(columns={'Task ID':'Task Freq'},inplace=True)
-#3) Sort the DWAs from step 2 based on:
-#a. The highest importance of any linked task from step 1.   
-
-#reading in csv file of dwa rankings
-ratedf = pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Task Ratings.xlsx', header=0)
-ratedf = ratedf.loc[:, ['O*NET-SOC Code', 'Task ID', 'Scale ID', 'Data Value']]
-
-#removing other ranking classifications from dataframe - FT = frequency and RT = relevance - only need IM = importance
-ratedf = ratedf[ratedf['Scale ID'] != 'FT']
-ratedf = ratedf[ratedf['Scale ID'] != 'RT']
-#print(ratedf)
-
-#map the task ratings onto the DWA to task crosswalk
 
 """A function that generates a multi_index dictionary from a dataframe
 """
@@ -150,8 +95,8 @@ def df_single_dict(df1,m1,c1):
 """A function that maps from one dataframe to another with a single key dictionary
 """
 def df_single_map(df1,df2,m1,c1):
-    #df1-dataframe 1
-    #df2-dataframe 2
+    #df1-dataframe 1 exporting column values
+    #df2-dataframe 2 importing column values
     #m1-column containing the map, in both dataframes
     #c1-column containing values you want to map
     
@@ -162,6 +107,7 @@ def df_single_map(df1,df2,m1,c1):
     #test for poor mapping
     print(df2.isna().sum())
     df2.dropna(inplace=True)
+    df2.drop('level_1',axis=1,inplace=True)
     return df2 
 
 """Test the functions
@@ -170,18 +116,6 @@ def df_single_map(df1,df2,m1,c1):
 #dftest=df.head(100)
 #testoutput=df_multi_map(ratedftest,dftest,'O*NET-SOC Code','Task ID','Data Value')
 #testoutput_single=df_single_map(ratedftest,dftest,'O*NET-SOC Code','Task ID')
-
-
-#load out IWA DWA crosswalk dataframe
-iwadf=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\DWA Reference.xlsx', header=0)
-iwas=list(iwadf['IWA ID'].unique())
-
-#create combined dataframe for DWA and Data Value
-dfvalue=df_multi_map(ratedf,df,'O*NET-SOC Code','Task ID','Data Value')
-#create another dataframe to add in IWA ID's
-dfIWA=df_single_map(iwadf,dfvalue,'DWA ID','IWA ID')
-#add on a coloumn for frequencey of task input into each DWA
-dffreq=df_multi_map(numtasks,dfIWA,'O*NET-SOC Code','DWA ID', 'Task Freq')
 
 """This function conducts a nested sort from a list on a GroupBy object
 """
@@ -277,14 +211,7 @@ def normal_nest(df,m1,m2,nestlist):
     df.drop('normalizer',axis=1,inplace=True)
     
     return df
-
-    
-#take the average data value and task freq for each IWA for each datavalue 
-dfavg=average_nest(dffreq,'O*NET-SOC Code','IWA ID',['Data Value','Task Freq'])
-
-#sort tasks with their associated IWA's by Average Data Value and Average Task Frequency for each Occupation
-sortdf=dfavg.groupby('O*NET-SOC Code').apply(sort_grp, list1=['Average Data Value','Average Task Freq','IWA ID'])
-sortdf.reset_index(drop=True,inplace=True) 
+  
 
 #drop any repetitions of IWA's within SOC's
 """This function drops duplicates of c1 within a GroupBy Object
@@ -292,20 +219,49 @@ sortdf.reset_index(drop=True,inplace=True)
 def within_drop(df,c1):
     df=df.drop_duplicates(keep=False,subset=c1)
     return df    
-uniIWAdf=sortdf.groupby('O*NET-SOC Code').apply(within_drop, c1='IWA ID')
+
+
+"""This function takes the BiAdjacency binary matrix and returns a dataframe 
+with a nested list, for each partite, the elements of the other partite associated with it
+"""
+def Biadj_todf(Adj, columnlist):
+    #Adj - adjacency matrix
+    #columnlist - list of column headers (each partite)
+    
+    #generate lists of nodes in each vertex
+    vertex1list=list(Adj)
+    #initalise dataframe
+    df=pd.DataFrame(columns=columnlist)   
+    
+    #generate a dictionary, for each column value, of a dictionary of skills and 
+    #binary value associated with it, the drop all the key,value pairs where value is 0
+    meta_dict=Adj.to_dict()
+    
+    for element in vertex1list:
+        #drop items where value is 0
+        meta_dict[element]={ k:v for k, v in meta_dict[element].items() if v==1 }
+        #get list of the nodes in vertex two associated with node: element
+        v2sublist=list(meta_dict[element].keys())
+        #add multiples of vertex1 to the dataframe 
+        elementlist=[element]*len(v2sublist)
+        tuplelist=zip(elementlist,v2sublist)
+        list_of_tup = [list(elem) for elem in tuplelist]
+        df2 = pd.DataFrame(list_of_tup, columns=columnlist)
+        df=df.append(df2)
+        
+    return df
 
 
 
-#trim down the dataframe to only include relevant variables
-finaldf=uniIWAdf[['O*NET-SOC Code', 'Task ID', 'DWA ID', 'IWA ID', 'Average Data Value', 'Average Task Freq']]
-finaldf.reset_index(drop=True,inplace=True) 
+
+#construct the weights off the rank or datavalue of each IWA in each Occupation
+"""FILL IN ONCE YOU HAVE TALKED TO KIERAN AND MARIA"""
+
 
 #check to see any repetitions of IWA's in each SOC
 #numiwa=finaldf.groupby(by=['O*NET-SOC Code', 'IWA ID'], as_index=False).count()[['O*NET-SOC Code','DWA ID', 'IWA ID']]
 #numiwa.rename(columns={'DWA ID':'IWA Freq'},inplace=True)
-
-  
-
+ 
 #4) Build the weighted bipartite graph from the dataframe
 """This function takes a dataframe and builds a weighted bipartite graph"""
 
@@ -340,14 +296,14 @@ def df_bipartite(df1,v1,v2,w,GraphName):
     #generate the Biadjacency matrix, put it into a dataframe, and save as excel
     
     Adjacency_matrix=bipartite.biadjacency_matrix(G,vertex1,vertex2)
-    global Adjacencydf
-    Adjacencydf=pd.DataFrame(Adjacency_matrix.toarray())
-    Adjacencydf.index=vertex1
-    Adjacencydf.columns=vertex2
+    global TaskAdj_df
+    TaskAdj_df=pd.DataFrame(Adjacency_matrix.toarray())
+    TaskAdj_df.index=vertex1
+    TaskAdj_df.columns=vertex2
     
     #save dataframe to excel
     ExcelTitle=GraphName+'.xlsx'
-    Adjacencydf.to_excel(ExcelTitle,startrow=0, startcol=0)
+    TaskAdj_df.to_excel(ExcelTitle,startrow=0, startcol=0)
         
     #pickle the graph
     GraphTitle=GraphName+'.gpickle'
@@ -366,11 +322,135 @@ def df_bipartite(df1,v1,v2,w,GraphName):
 
     return G
 
+#Begin the Data Analysis 
+    
+#1)using pandas to read in the data in excel format as dataframes
+df = pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Tasks to DWAs.xlsx', header=0)
+ratedf = pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Task Ratings.xlsx', header=0)
+iwadf=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\DWA Reference.xlsx', header=0)
+skilldf=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Skills.xlsx', header=0)
+skilliwamatrix=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Skills to IWA.xlsx',header=0)
+skilliwamatrix.set_index('Element ID', inplace=True)
+skilliwadf=Biadj_todf(skilliwamatrix,['IWA ID','Skill ID'])
+
+
+
+#2)produce lists of elements
+#list of uniques occupations
+occs = list(df['O*NET-SOC Code'].unique())
+#list of unique tasks
+tasks = list(df['Task ID'].unique())
+#list of unique dwas 
+dwaids = list(df['DWA ID'].unique())
+#list of unique IWA's
+iwas=list(iwadf['IWA ID'].unique())
+
+
+#gives unique task codes list related to occupation
+uniqtasks = df.groupby('O*NET-SOC Code')['Task ID'].unique().reset_index()
+#gives unique DWA code list related to occupation
+uniqdwa = df.groupby('O*NET-SOC Code')['DWA ID'].unique().reset_index()
+#give number of unique tasks for each occ
+numuniqtasks = df.groupby(by='O*NET-SOC Code', as_index=False).agg({'Task ID': pd.Series.nunique})
+
+#3) Collect the list of all tasks associated with DWA's across occupations
+dwas = df.groupby('DWA ID')['Task ID'].unique().reset_index()
+#print(dwas)
+
+#give number of unique dwas linked to each task
+numdwas = df.groupby(by='DWA ID', as_index=False).agg({'Task ID': pd.Series.nunique})
+#print(numdwas)    
+
+#give the number of tasks for each DWA in each occupation
+numtasks=df.groupby(by=['O*NET-SOC Code', 'DWA ID'], as_index=False).agg({'Task ID': pd.Series.nunique})
+numtasks.rename(columns={'Task ID':'Task Freq'},inplace=True)
+
+#reading in csv file of dwa rankings
+ratedf = ratedf.loc[:, ['O*NET-SOC Code', 'Task ID', 'Scale ID', 'Data Value']]
+
+#removing other ranking classifications from dataframe - FT = frequency and RT = relevance - only need IM = importance
+ratedf = ratedf[ratedf['Scale ID'] != 'FT']
+ratedf = ratedf[ratedf['Scale ID'] != 'RT']
+skilllevel=skilldf[skilldf['Scale ID']=='LV']
+skillimp=skilldf[skilldf['Scale ID']=='IM']
+
+
+#print(ratedf)
+
+#4)map the dataframes together and onstruct the weighting's to choose from
+
+#create combined dataframe for DWA and Data Value
+dfvalue=df_multi_map(ratedf,df,'O*NET-SOC Code','Task ID','Data Value')
+#create another dataframe to add in IWA ID's
+dfIWA=df_single_map(iwadf,dfvalue,'DWA ID','IWA ID')
+#add on a coloumn for frequencey of task input into each DWA
+dffreq=df_multi_map(numtasks,dfIWA,'O*NET-SOC Code','DWA ID', 'Task Freq')
+
+#take the average data value and task freq for each IWA for each datavalue 
+dfavg=average_nest(dffreq,'O*NET-SOC Code','IWA ID',['Data Value','Task Freq'])
+
+"""Here we are going to run a test enviroment, to generate a dataset with each SOC,IWA and SKill"""
+
+
+#first get a dataframe containnig the unique set of IWA per SOC
+dfIWAtrim=dfIWA[['O*NET-SOC Code','IWA ID']].groupby('O*NET-SOC Code').apply(within_drop, c1='IWA ID')
+dfIWAtrim.reset_index(drop=True, inplace=True)
+
+#then get the dataframe containing the SOC, each Skill and their level
+skillleveltrim=skilllevel[['O*NET-SOC Code','Element ID','Data Value']]
+
+#then get the dataframe containing, for each IWA, the list of associated Skills
+iwa_skilllistdf=skilliwadf.groupby('IWA ID')['Skill ID'].unique().reset_index()
+#map that list to each IWA within each SOC
+SOC_IWA_SKILLdf=df_single_map(iwa_skilllistdf,dfIWAtrim,'IWA ID','Skill ID')
+
+
+def list_extend(df,m1,m2,c1):
+    #df - dataframe 
+    #m1 - first group
+    #m2 - second group
+    #c1 - column containing lists
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+#sort tasks with their associated IWA's by Average Data Value and Average Task Frequency for each Occupation
+sortdf=dfavg.groupby('O*NET-SOC Code').apply(sort_grp, list1=['Average Data Value','Average Task Freq','IWA ID'])
+sortdf.reset_index(drop=True,inplace=True) 
+
+#drop any repetitions of IWA's within SOC's
+uniIWAdf=sortdf.groupby('O*NET-SOC Code').apply(within_drop, c1='IWA ID')
+
+#trim down the dataframe to only include relevant variables
+finaldf=uniIWAdf[['O*NET-SOC Code', 'Task ID', 'DWA ID', 'IWA ID', 'Average Data Value', 'Average Task Freq']]
+finaldf.reset_index(drop=True,inplace=True) 
+
+#5)build the bipartite graph
 #build the weighted bipartite graph, and its adjacency matrix
 SOC_IWA_bipartite=df_bipartite(finaldf,'O*NET-SOC Code','IWA ID','Average Data Value','Bipartite1')
-
-
-
-
-
-
+""" 

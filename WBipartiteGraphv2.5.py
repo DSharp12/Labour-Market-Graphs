@@ -10,15 +10,8 @@ import networkx as nx
 from networkx import bipartite
 import pickle
 import matplotlib.pyplot as plt
-import shelve
-import os
-
-
-
 
 #using pandas to read in the data in csv format as a dataframe: df
-
-
 df = pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Tasks to DWAs.xlsx', header=0)
 #print(df.head())
 
@@ -203,10 +196,10 @@ def average_nest(df,m1,m2,avglist):
     #avgnames-list of names of averge values column
     
     #initalise the new average columns for the dataframe
-    df1=df #the function does not alter its original input dataframe
+    
     for i in avglist:
         #find the mean of each list element 1 in each nested group
-        dfmean=df1.groupby([m1,m2])[i].mean()
+        dfmean=df.groupby([m1,m2])[i].mean()
         #create a multi-index dictionary with the multi-index as key, average as value        
         list1=dfmean.index.tolist()
         list2=dfmean.tolist()
@@ -214,71 +207,19 @@ def average_nest(df,m1,m2,avglist):
         #read the multi-index dictionary into the dataframe
         
         #generate the tuple list to map the average values
-        m1list=list(df1[m1]) 
-        m2list=list(df1[m2])
-        df1['tuplelist']= pd.Series(list(zip(m1list,m2list)))
-        
-        """CHECK THIS CODE"""
-        df1.dropna(axis=0,subset=['tuplelist'],inplace=True)
-        
-        
-        #pull average value column name from avgnames
-        columnname='Average '+i 
-        df1[columnname]=""
-        #map average values from dictionary to dataframe   
-        df1[columnname]=df1['tuplelist'].map(avg_dict)
-    #clean up the dataframe    
-    df1.drop('tuplelist',axis=1, inplace=True)
-    
-    return df1
-
-"""This function normalizes nested values in a dataframe"""
-def normal_nest(df,m1,m2,nestlist):
-    #df-dataframe
-    #m1-fist column to group by
-    #m2-second column to group by
-    #avglist-list of columns you wish to normalise
-
-    for i in nestlist:
-        
-        #create a Groupby series object with the normalizing value
-        nestsum=df.groupby([m1,m2])[i].sum()
-        
-        #create a multi-index dictionary with the multi-index as key, normalized value as value        
-        #create a list of the multi-index
-        list1=nestsum.index.tolist()
-       
-        #crate a list of normalizing values and their reciprocal for each (m1,m2) tuple
-        sumlist=nestsum.tolist()             
-        normaliser=list(np.reciprocal(sumlist))            
-        #create dictionary relating each (m1,m2) to a value, and its normalizer    
-        normalizer_dict=dict(zip(list1,normaliser))
-         
-        #read the multi-index dictionary into the dataframe
-        
-        #generate the tuple list to map the normalizer value
         m1list=list(df[m1]) 
         m2list=list(df[m2])
         df['tuplelist']= pd.Series(list(zip(m1list,m2list)))
-        #generate the column containing the normalizer for each (m1,m2) pair
-        df['normalizer']=df['tuplelist'].map(normalizer_dict)          
-                     
-        
-        #pull average value column name from nestlist
-        columnname='Normalized '+i 
+        #pull average value column name from avgnames
+        columnname='Average '+i 
         df[columnname]=""
-        
-        #generate normalizing column by multiplying the two series together   
-        df[columnname]=df['normalizer']*df[i]
-        
-                
+        #map average values from dictionary to dataframe   
+        df[columnname]=df['tuplelist'].map(avg_dict)
     #clean up the dataframe    
-    df.drop('tuplelist',axis=1, inplace=True)    
-    df.drop('normalizer',axis=1,inplace=True)
+    df.drop('tuplelist',axis=1, inplace=True)
     
     return df
-
-    
+  
 #take the average data value and task freq for each IWA for each datavalue 
 dfavg=average_nest(dffreq,'O*NET-SOC Code','IWA ID',['Data Value','Task Freq'])
 
@@ -294,7 +235,8 @@ def within_drop(df,c1):
     return df    
 uniIWAdf=sortdf.groupby('O*NET-SOC Code').apply(within_drop, c1='IWA ID')
 
-
+#construct the weights off the rank or datavalue of each IWA in each Occupation
+"""FILL IN ONCE YOU HAVE TALKED TO KIERAN AND MARIA"""
 
 #trim down the dataframe to only include relevant variables
 finaldf=uniIWAdf[['O*NET-SOC Code', 'Task ID', 'DWA ID', 'IWA ID', 'Average Data Value', 'Average Task Freq']]
@@ -327,7 +269,6 @@ def df_bipartite(df1,v1,v2,w,GraphName):
     tuple2=list(df1[v2])
     tuple3=list(df1[w])
     #list of weighted edges
-    
     weighted_edgelist=list(zip(tuple1,tuple2,tuple3))
     
     #build the graph
@@ -338,16 +279,15 @@ def df_bipartite(df1,v1,v2,w,GraphName):
     G.add_weighted_edges_from(weighted_edgelist)
     
     #generate the Biadjacency matrix, put it into a dataframe, and save as excel
-    
     Adjacency_matrix=bipartite.biadjacency_matrix(G,vertex1,vertex2)
     global Adjacencydf
     Adjacencydf=pd.DataFrame(Adjacency_matrix.toarray())
-    Adjacencydf.index=vertex1
-    Adjacencydf.columns=vertex2
+    Adjacencydf.rename_axis(vertex1, axis=0,inplace=True)
+    Adjacencydf.rename_axis(vertex2, axis=1,inplace=True)
     
     #save dataframe to excel
     ExcelTitle=GraphName+'.xlsx'
-    Adjacencydf.to_excel(ExcelTitle,startrow=0, startcol=0)
+    Adjacencydf.to_excel(ExcelTitle,startrow=1, startcol=1)
         
     #pickle the graph
     GraphTitle=GraphName+'.gpickle'
@@ -367,8 +307,13 @@ def df_bipartite(df1,v1,v2,w,GraphName):
     return G
 
 #build the weighted bipartite graph, and its adjacency matrix
-SOC_IWA_bipartite=df_bipartite(finaldf,'O*NET-SOC Code','IWA ID','Average Data Value','Bipartite1')
+SOC_IWA_bipartite=df_bipartite(finaldf,'O*NET-SOC Code','IWA ID','Average Data Value','Bipartite')
 
+#find the graphs adjacency  and return it as a dataframe
+Adjacency_matrix=bipartite.biadjacency_matrix(SOC_IWA_bipartite,occs,iwas)
+Adjacencydf=pd.DataFrame(Adjacency_matrix.toarray())
+Adjacencydf.rename_axis(occs, axis=0,inplace=True)
+Adjacencydf.rename_axis(iwas, axis=1,inplace=True)
 
 
 

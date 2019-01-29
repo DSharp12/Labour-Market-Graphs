@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import os
 
 #set filepath
-path=r"C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis"
+path=r"C:\Users\Daniel Sharp\OneDrive - Nexus365\MPhil Thesis\Data and Analysis"
 os.chdir(path)
 
 
@@ -371,23 +371,23 @@ def df_bipartite(df1,v1,v2,w,GraphName):
 
 #1)using pandas to read in the data in excel format as dataframes
 df = pd.read_excel('Tasks to DWAs.xlsx', header=0)
-ratedf = pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Task Ratings.xlsx', header=0)
-iwadf=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\DWA Reference.xlsx', header=0)
+ratedf = pd.read_excel('Task Ratings.xlsx', header=0)
+iwadf=pd.read_excel('DWA Reference.xlsx', header=0)
 
 
 
-skilldf=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Skills.xlsx', header=0)
-abilitydf=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Abilities.xlsx')
+skilldf=pd.read_excel('Skills.xlsx', header=0)
+abilitydf=pd.read_excel('Abilities.xlsx')
 
 
 
 
 
 
-skilliwamatrix=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\Skills to IWA.xlsx',header=0)
+skilliwamatrix=pd.read_excel('Skills to IWA.xlsx',header=0)
 skilliwamatrix.set_index('Element ID', inplace=True)
 skilliwadf=Biadj_todf(skilliwamatrix,['IWA ID','Skill ID'])
-abilityIWAmatrix=pd.read_excel(r'C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis\In_Ab.xlsx',header=0)
+abilityIWAmatrix=pd.read_excel('In_Ab.xlsx',header=0)
 abilityiwadf=Biadj_todf(abilityIWAmatrix,['IWA ID','Ability ID'])
 
 
@@ -466,9 +466,12 @@ uniIWAdf_task=sortdf.groupby('O*NET-SOC Code').apply(within_drop, c1='IWA ID')
 finaldf_task=uniIWAdf_task[['O*NET-SOC Code', 'Task ID', 'DWA ID', 'IWA ID', 'Average Data Value', 'Average Task Freq']]
 finaldf_task.reset_index(drop=True,inplace=True) 
 
+#save the dataframe to be used elsewhere
+finaldf_task.to_excel('SOC_IWA Task Intensity.xlsx')
 
 
 #4b) Generate a weighting based on the average skill level of those IWAs in those occupations 
+#NOTE: THIS REALLY NEEDS TO BE CHANGED, CLEANED AND UPDATED. JAN 8th 2019
 
 #first get a dataframe containnig the unique set of IWA per SOC
 dfIWAtrim=dfIWA[['O*NET-SOC Code','IWA ID']].groupby('O*NET-SOC Code').apply(within_drop, c1='IWA ID')
@@ -496,6 +499,16 @@ uniIWAdf_skill.reset_index(drop=True,inplace=True)
 #produce the final dataframe for IWA Skills weighting
 finaldf_skill=uniIWAdf_skill[['O*NET-SOC Code', 'IWA ID', 'Average Data Value']]
 finaldf_skill.reset_index(drop=True,inplace=True) 
+
+#save finaldf_skill for later use
+finaldf_skill.to_excel('SOCSkillIWAdf.xlsx')
+
+
+
+
+
+
+
 
 """
 #4c) Generate a weighting based on the ability intensity score
@@ -528,7 +541,7 @@ finaldf_ability.reset_index(drop=True,inplace=True) """
 SOC_IWA_skill_bipartite=df_bipartite(finaldf_skill,'O*NET-SOC Code','IWA ID','Average Data Value','Bipartite_skill')
 SkillAdj_df=TaskAdj_df
 SOC_IWA_task_bipartite=df_bipartite(finaldf_task,'O*NET-SOC Code','IWA ID','Average Data Value','Bipartite_task')
-
+SOC_IWA_task_bipartite.to_excel('Job Task Bipartite Adjacency - Weighted by Task Intensity.xlsx')
 
 
 

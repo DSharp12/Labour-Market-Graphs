@@ -257,8 +257,8 @@ def Weighted_Katz(Adj,weight_vec):
 
 
 
-Undirected_Skill_Graph = Mealy_Projection(SkillAdj_df)
-Directed_Skill_Graph=Mealy_Projection(SkillAdj_df,Directed=True)
+#Undirected_Skill_Graph = Mealy_Projection(SkillAdj_df)
+#Directed_Skill_Graph=Mealy_Projection(SkillAdj_df,Directed=True)
 
 #SpectralPlot(Undirected_Skill_Graph)
 

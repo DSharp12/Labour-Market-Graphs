@@ -8,8 +8,9 @@ import pandas as pd
 import os
 import networkx as nx
 from networkx import bipartite
+import matplotlib.pyplot as plt
 #set filepath
-path=r"C:\Users\Daniel Sharp\Documents\MPhil Thesis\Data and Analysis"
+path=r"C:\Users\Daniel Sharp\OneDrive - Nexus365\MPhil Thesis\Data and Analysis"
 os.chdir(path)
 
 #Construct the mapping of SOC to ACS Codes
@@ -194,6 +195,71 @@ def df_bipartite(df1,v1,v2):
     
     return G              
 
+"""This function takes a dataframe and builds a weighted bipartite graph"""
+
+def df_weighted_bipartite(df1,v1,v2,w,GraphName):
+    #df1-dataframe with partite sets as columns, and a column of weights
+    #v1-column for first partite set
+    #v2-column for second partite set
+    #w-column of weights
+    #GraphName - name of the graph image and file to be saved
+    
+    
+    #initialise the dataframe
+    #dfsort=df1.groupby([v1,v2], as_index=False).unique() 
+    
+    global vertex1
+    global vertex2
+    vertex1=list(df1[v1].unique())
+    vertex2=list(df1[v2].unique())
+    #list of each half of the tuples that form the ends of an edge, and its weight
+    tuple1=list(df1[v1])
+    tuple2=list(df1[v2])
+    tuple3=list(df1[w])
+    #list of weighted edges
+    
+    weighted_edgelist=list(zip(tuple1,tuple2,tuple3))
+    
+    #build the graph
+    G=nx.Graph()
+    G.add_nodes_from(vertex1, bipartite=0) 
+    G.add_nodes_from(vertex2, bipartite=1)
+    #add all edges and weights
+    G.add_weighted_edges_from(weighted_edgelist)
+    
+    #generate the Biadjacency matrix, put it into a dataframe, and save as excel
+    global Adjacency_matrix
+    Adjacency_matrix=bipartite.biadjacency_matrix(G,vertex1,vertex2)
+    
+    global TaskAdj_df
+    TaskAdj_df=pd.DataFrame(Adjacency_matrix.toarray())
+    TaskAdj_df.index=vertex1
+    TaskAdj_df.columns=vertex2
+    
+    #save dataframe to excel
+    ExcelTitle=GraphName+'.xlsx'
+    TaskAdj_df.to_excel(ExcelTitle,startrow=0, startcol=0)
+        
+    #pickle the graph
+    GraphTitle=GraphName+'.gpickle'
+    nx.write_gpickle(G, GraphTitle)
+    
+    #draw the graph
+    #create positional dictinoary
+    pos={}
+    #place respective vertices into place
+    pos.update((n, (1, i)) for i, n in enumerate(vertex1))
+    pos.update((n, (2, i)) for i, n in enumerate(vertex2))
+    nx.draw(G, pos=pos)
+    Figname=GraphName+'.png'
+    plt.savefig(Figname)
+    plt.show()
+
+    return G
+
+
+
+
 
 def SpectralCorr(df,Adj,c1,Attributelist,Numspec):
     #df - the dataframe containing the nodelist and their attributes
@@ -256,6 +322,46 @@ def SpectralCorr(df,Adj,c1,Attributelist,Numspec):
               print('This is the corrolation matrix between '+ att + ' and spectal dimension '+str(i))
               eigendf[i].corr(eigendf[att])
 
+"""This function takes the average value of multiple nested elements in a dataframe
+   and adds them to the dataframe
+"""
+def average_nest(df,m1,m2,avglist):
+    #df-dataframe
+    #m1-fist column to group by
+    #m2-second column to group by
+    #avglist-list of columns you wish to average
+    #avgnames-list of names of averge values column
+    
+    #initalise the new average columns for the dataframe
+    df1=df #the function does not alter its original input dataframe
+    for i in avglist:
+        #find the mean of each list element 1 in each nested group
+        dfmean=df1.groupby([m1,m2])[i].mean()
+        #create a multi-index dictionary with the multi-index as key, average as value        
+        list1=dfmean.index.tolist()
+        list2=dfmean.tolist()
+        avg_dict=dict(zip(list1,list2))
+        #read the multi-index dictionary into the dataframe
+        
+        #generate the tuple list to map the average values
+        m1list=list(df1[m1]) 
+        m2list=list(df1[m2])
+        df1['tuplelist']= pd.Series(list(zip(m1list,m2list)))
+        
+        
+        df1.dropna(axis=0,subset=['tuplelist'],inplace=True)
+        
+        
+        #pull average value column name from avgnames
+        columnname='Average '+i 
+        df1[columnname]=""
+        #map average values from dictionary to dataframe   
+        df1[columnname]=df1['tuplelist'].map(avg_dict)
+    #clean up the dataframe    
+    df1.drop('tuplelist',axis=1, inplace=True)
+    
+    return df1
+
 """Truncation function
 """
 def f(x):
@@ -263,6 +369,12 @@ def f(x):
         return 0
     else: 
         return x
+
+"""This function drops duplicates of c1 within a GroupBy Object
+"""
+def within_drop(df,c1):
+    df=df.drop_duplicates(subset=c1,keep='first')
+    return df 
 
 
 
@@ -273,6 +385,7 @@ SOCDWAdf= pd.read_excel('Tasks to DWAs.xlsx', header=0)
 SOCACSdf=pd.read_excel('acs-crosswalk.xlsx',header=0)
 IWADWAdf=pd.read_excel('DWA Reference.xlsx',header=0)
 ACSwagedf=pd.read_csv('ACS_Properties.csv',header=0)
+
 
 #apply the code mapper to the SOCDWA dataframe to generate the 6 didigt SOC's
 mid_SOCDWAdf=Code_mapper(SOCDWAdf,'O*NET-SOC Code','SOC 2010 Code')
@@ -285,12 +398,20 @@ finACSIWAdf=df_single_map(IWADWAdf,fin_SOCDWAdf,'DWA ID','IWA ID')
 
 #take only the final bipartite between ACS codes and IWA codes
 finaldf=finACSIWAdf[['ACS Code','IWA ID']]
+finalSOCdf=finACSIWAdf[['O*NET-SOC Code','IWA ID']]
+
 
 #generate a Biadjacency matrix from the final dataframe
 Mealy_bipartite=df_bipartite(finaldf,'ACS Code','IWA ID')
+Mealy_bipartite=df_bipartite(finalSOCdf,'O*NET-SOC Code','IWA ID')
+
+TaskAdj_df.to_excel('ACS Unweighted Bipartite.xlsx')
+UnweightedAdj=TaskAdj_df
+
+
 
 #project the bipartite graph using Mealy Projection
-JobSpaceAdj=Mealy_Projection(TaskAdj_df)
+JobSpaceAdj=Mealy_Projection(UnweightedAdj)
 
 #get the ACS median log-wage vector
 ACSwage=ACSwagedf[['acs_occ_code','log_median_earnings']]
@@ -299,11 +420,80 @@ ACSwage=ACSwagedf[['acs_occ_code','log_median_earnings']]
 SpectralCorr(ACSwage,JobSpaceAdj,'acs_occ_code','log_median_earnings',10)
 
 
-mariatruncdf=mariadf.applymap(f)
-
-mariatruncdf.to_csv('mariatruncdf.csv')
 
 
+"""This section of the code will extend Mealy et al(2018) work to weight the initial bipartite graph 
+using our skill measure and the task intesnities
+"""
+
+#we load the dataframe containing the weighted SOC-IWA maps for skill weighted
+#and task weighted bipartite graphs
+SOC_IWA_Intensitydf=pd.read_excel('SOC_IWA Task Intensity.xlsx')
+SOC_SkillIWA_Intensity=pd.read_excel('SOCSkillIWAdf.xlsx')
+
+
+
+#get IWA intensity for each ACS code by merging the dataframes
+#for tasks
+mid_SOCTaskIntensitydf=Code_mapper(SOC_IWA_Intensitydf,'O*NET-SOC Code','SOC 2010 Code')
+fin_SOCTaskIntensitydf=df_single_map(SOCACSdf,mid_SOCTaskIntensitydf,'SOC 2010 Code','ACS Code')
+
+#for skill
+mid_SOCSkillIntensitydf=Code_mapper(SOC_SkillIWA_Intensity,'O*NET-SOC Code','SOC 2010 Code')
+fin_SOCSkillIntensitydf=df_single_map(SOCACSdf,mid_SOCSkillIntensitydf,'SOC 2010 Code','ACS Code')
+
+#average the IWA intensity for all the SOC's within each ACS code to get unique
+#IWA to ACS code intensity mapping
+
+#for tasks
+ACSIWAIntensity=average_nest(fin_SOCTaskIntensitydf, 'ACS Code','IWA ID',['Average Data Value'] )
+
+#for skill
+ACSSkillIntensity=average_nest(fin_SOCSkillIntensitydf,'ACS Code','IWA ID',['Average Data Value'])
+#drop repeats of IWA's within ACS codes
+
+#for tasks
+FinACSIWAdf=ACSIWAIntensity.groupby('ACS Code').apply(within_drop, c1='IWA ID')
+
+#for skill
+FinACSSkilldf=ACSSkillIntensity.groupby('ACS Code').apply(within_drop, c1='IWA ID')
+
+#pare down the dataframe ready for the bipartite graph
+FinACSIWAdf=FinACSIWAdf[['IWA ID','ACS Code','Average Average Data Value']]
+FinACSSkilldf=FinACSSkilldf[['IWA ID','ACS Code','Average Average Data Value']]
+
+
+#build the ACS bipartite for tasks and skills
+
+#for tasks
+ACSTaskBipartite=df_weighted_bipartite(FinACSIWAdf,'ACS Code','IWA ID','Average Average Data Value','ACSIWATaskIntensityBipartite')
+#save Bipartite Adjacency
+TaskAdj_df.to_excel('ACS IWA Task Intensity Weighted Bipartite.xlsx')
+
+#for skills
+ACSSkillBipartite=df_weighted_bipartite(FinACSSkilldf,'ACS Code','IWA ID','Average Average Data Value','ACSIWATaskIntensityBipartite')
+SkillAdj_df=TaskAdj_df
+
+#save Bipartite Adjacency
+SkillAdj_df.to_excel('ACS Skill weighted IWA Bipartite.xlsx')
+
+#build the two ACS graphs
+
+TaskWeightedJobSpace=Mealy_Projection(TaskAdj_df)
+SkillWeightedJobSpace=Mealy_Projection(SkillAdj_df)
+
+#save the projections
+TaskWeightedJobSpace.to_excel('ACS Task Weighted Job Space.xlsx')
+SkillWeightedJobSpace.to_excel('ACS Skill Weighted Task Job Space.xlsx')
+JobSpaceAdj.to_excel('ACS Unweighted Job Space.xlsx')
+
+
+
+
+#saivng the graphs
+#mariatruncdf=mariadf.applymap(f)
+#mariatruncdf.to_csv('mariatruncdf.csv')
+#JobSpaceAdj.to_excel('UnweightedGraph.xlsx')
 
 
 
