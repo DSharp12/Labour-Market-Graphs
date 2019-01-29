@@ -4,7 +4,7 @@ spanned by the eigenvectors
 """
 
 """This function takes a BiAdjacency Matrix, as a dataframe and returns an Adjacency Matrix 
-of a Graph as another dataframe using the projection found in Mealy et al.(2018)
+of a Graph as another dataframe using the projection found in Mealy et al.(2018).
 """
 import matplotlib.pyplot as plt
 import networkx as nx
