@@ -319,7 +319,7 @@ Skill_LapNorm=Laplacian(Skillw_Graph)
 
 #find the spectral labels for each graph
 UnLabels=SpectralLabels(Un_LapNorm)
-TaskLabels=SpectralLabels(Task_LapNorm)
+TaskLabels=SpectralLabels(Task_LapNorm, num_clus=12)
 SkillLabels=SpectralLabels(Skill_LapNorm)
 
 #construct three dataframes of cluster identifiers
@@ -329,7 +329,7 @@ SkillWeightedClusterdf=SpectralID(SkillLabels,Skillw_Graph,Occupationdf,'O*NET-S
 
 #Save the files as Excels
 UnWeightedClusterdf.to_excel('UnweightedClusters.xlsx')
-TaskWeightedClusterdf.to_excel('TaskweightedClusters.xlsx')
+TaskWeightedClusterdf.to_excel('TaskweightedClusters (12).xlsx')
 SkillWeightedClusterdf.to_excel('SkillWeightedClusterdf.xlsx')
 
 

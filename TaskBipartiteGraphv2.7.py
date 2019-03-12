@@ -346,12 +346,12 @@ def df_bipartite(df1,v1,v2,w,GraphName):
     ExcelTitle=GraphName+'.xlsx'
     TaskAdj_df.to_excel(ExcelTitle,startrow=0, startcol=0)
         
-    #pickle the graph
+    # pickle the graph
     GraphTitle=GraphName+'.gpickle'
     nx.write_gpickle(G, GraphTitle)
     
-    #draw the graph
-    #create positional dictinoary
+    # draw the graph
+    # create positional dictinoary
     pos={}
     #place respective vertices into place
     pos.update((n, (1, i)) for i, n in enumerate(vertex1))
